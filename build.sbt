@@ -5,7 +5,7 @@ ThisBuild / scalaVersion := "2.13.15"
 lazy val root = (project in file("."))
   .settings(
     organization := "com.aluscent",
-    name := "EnvironmentSpecificConfig",
+    name := "Environment-Specific-Config",
     libraryDependencies ++= Seq(
       "com.typesafe" % "config" % "1.4.3",
       "org.scalatest" %% "scalatest" % "3.2.19" % Test
