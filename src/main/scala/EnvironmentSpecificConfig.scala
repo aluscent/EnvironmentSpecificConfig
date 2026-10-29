@@ -4,15 +4,18 @@ import com.typesafe.config.{Config, ConfigFactory}
 
 import java.io.File
 import java.nio.file.{Files, Paths}
-import scala.util.Properties
+import scala.collection.JavaConverters._
 
-class EnvironmentSpecificConfig {
+class EnvironmentSpecificConfig(
+    environment: Map[String, String] = sys.env,
+    fileConfig: Option[Config] = None
+) {
 
   val selectedProfile: String =
-    Properties.envOrElse("ACTIVE_PROFILE", "local")
+    environment.getOrElse("ACTIVE_PROFILE", "local")
 
   private val rootConfigFilePath =
-    Properties.envOrElse("ROOT_CONFIG_PATH", "/conf/default.conf")
+    environment.getOrElse("ROOT_CONFIG_PATH", "/conf/default.conf")
 
   private val rootConfigFile: Option[File] =
     if (Files.exists(Paths.get(rootConfigFilePath))) {
@@ -25,16 +28,16 @@ class EnvironmentSpecificConfig {
 
   println(s"[${getClass.getSimpleName}] Profile set to $selectedProfile.")
 
-  private val configsInFiles: Config = (rootConfigFile match {
+  private val configsInFiles: Config = fileConfig.getOrElse((rootConfigFile match {
     case Some(file: File) =>
       ConfigFactory.parseFile(file)
         .withFallback(ConfigFactory.load(selectedProfile))
     case None =>
       ConfigFactory.load(selectedProfile)
   })
-    .withFallback(ConfigFactory.load())
+    .withFallback(ConfigFactory.load()).resolve())
 
-  private val configsFromEnvs: Config = ConfigFactory.systemEnvironment()
+  private val configsFromEnvs: Config = ConfigFactory.parseMap(environment.asJava)
 
   private def configOfFileToConfigOfEnv(name: String): String =
     name.replace(".", "_")
@@ -51,15 +54,31 @@ class EnvironmentSpecificConfig {
       configsFromEnvs.getInt(configOfFileToConfigOfEnv(name))
     else configsInFiles.getInt(name)
 
-  def getConfig(name: String): Config = configsInFiles.getConfig(name)
+  /** Environment overrides apply to the existing leaves of a config object too.
+    * Environment-only paths remain available through scalar getters; underscores
+    * cannot unambiguously describe new nested object paths.
+    */
+  def getConfig(name: String): Config = {
+    val base = configsInFiles.getConfig(name)
+    base.entrySet().asScala.foldLeft(base) { (resolved, entry) =>
+      val envKey = configOfFileToConfigOfEnv(s"$name.${entry.getKey}")
+      if (configsFromEnvs.hasPathOrNull(envKey))
+        resolved.withValue(entry.getKey, configsFromEnvs.getValue(envKey))
+      else resolved
+    }
+  }
+
+  private def contains(name: String): Boolean =
+    configsFromEnvs.hasPathOrNull(configOfFileToConfigOfEnv(name)) ||
+      configsInFiles.hasPathOrNull(name)
 
   def confOrElse(name: String, other: String): String =
-    if (configsInFiles.hasPathOrNull(name))
+    if (contains(name))
       getString(name)
     else other
 
   def confOrElse(name: String, other: Int): Int =
-    if (configsInFiles.hasPathOrNull(name))
+    if (contains(name))
       getInt(name)
     else other
 }

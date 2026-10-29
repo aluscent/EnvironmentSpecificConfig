@@ -4,7 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 
 class SimpleTests extends AnyFlatSpec {
 
-  val config = new EnvironmentSpecificConfig
+  val config = new EnvironmentSpecificConfig(Map.empty)
 
   "Environment" should "be local (the default)" in assert(config.selectedProfile === "local")
 

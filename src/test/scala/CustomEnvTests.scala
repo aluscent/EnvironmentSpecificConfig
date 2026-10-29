@@ -4,16 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 
 class CustomEnvTests extends AnyFlatSpec {
 
-  def setEnv(key: String, value: String): String = {
-    val field = System.getenv().getClass.getDeclaredField("m")
-    field.setAccessible(true)
-    val map = field.get(System.getenv()).asInstanceOf[java.util.Map[java.lang.String, java.lang.String]]
-    map.put(key, value)
-  }
-
-  setEnv("ACTIVE_PROFILE", "dev")
-
-  val config = new EnvironmentSpecificConfig
+  val config = new EnvironmentSpecificConfig(Map("ACTIVE_PROFILE" -> "dev"))
 
   "Environment" should "be dev" in assert(config.selectedProfile === "dev")
 
